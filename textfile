@@ -1,0 +1,2 @@
+This approach relies on the browser's ability to handle both file and folder selections. Some browsers may not fully support selecting both files and folders simultaneously with a single input.
+If you need to support both functionalities robustly, consider using two separate inputs, or guide users to select either files or folders based on their needs.

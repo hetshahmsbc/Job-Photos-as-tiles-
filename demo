@@ -1,0 +1,201 @@
+document.addEventListener("DOMContentLoaded", () => {
+    // Get references to the DOM elements
+    const gallery = document.getElementById("gallery");
+    const modal = document.getElementById("imageModal");
+    const modalImage = document.getElementById("modalImage");
+    const caption = document.getElementById("caption");
+    const closeModal = document.querySelector(".close");
+
+    const fileInput = document.getElementById("fileInput");
+    const addImagesButton = document.getElementById("addImages");
+    const deleteSelectedButton = document.getElementById("deleteSelected");
+    const downloadZipButton = document.getElementById("downloadZip");
+    const emailAttachmentButton = document.getElementById("emailAttachment");
+
+    // Array to store images categorized by month
+    const months = Array(12).fill().map(() => ({ images: [] }));
+
+    // Utility function to render the gallery
+    const renderGallery = () => {
+        gallery.innerHTML = "";  // Clear the gallery before re-rendering
+
+        // Loop through the months array to render each month's images
+        months.forEach(({ images }, monthIndex) => {
+            if (images.length > 0) {  // Only render months with images
+                const monthContainer = document.createElement("div");
+                monthContainer.classList.add("month-container");
+
+                const title = document.createElement("h3");
+                title.classList.add("month-title");
+                title.innerText = new Date(2024, monthIndex).toLocaleString('default', { month: 'long', year: 'numeric' });
+                monthContainer.appendChild(title);
+
+                // Create "Select Month" radio button
+                const selectMonthRadio = document.createElement("input");
+                selectMonthRadio.type = "radio";
+                selectMonthRadio.name = "selectMonth";
+                selectMonthRadio.classList.add("select-month-radio");
+                selectMonthRadio.addEventListener("change", () => selectMonth(monthIndex));
+                monthContainer.appendChild(selectMonthRadio);
+
+                const monthImages = document.createElement("div");
+                monthImages.classList.add("d-flex", "flex-wrap");
+
+                // Loop through the images for the month and create image elements
+                images.forEach(({ src, name }, index) => {
+                    const imageContainer = document.createElement("div");
+                    imageContainer.classList.add("image-container");
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.classList.add("checkbox");
+                    checkbox.id = `checkbox-${monthIndex}-${index}`;
+
+                    const img = document.createElement("img");
+                    img.src = src;
+                    img.alt = name;
+                    img.classList.add("gallery-image");
+
+                    // Add an event listener to open the modal when an image is clicked
+                    img.addEventListener("click", (e) => {
+                        e.preventDefault();
+                        openModal(src, name);
+                    });
+
+                    imageContainer.appendChild(checkbox);
+                    imageContainer.appendChild(img);
+                    monthImages.appendChild(imageContainer);
+                });
+
+                monthContainer.appendChild(monthImages);
+                gallery.appendChild(monthContainer);
+            }
+        });
+    };
+
+    // Function to select all images of a specific month
+    const selectMonth = (monthIndex) => {
+        // Deselect all checkboxes before selecting images of the clicked month
+        document.querySelectorAll(".checkbox").forEach((checkbox) => (checkbox.checked = false));
+        months[monthIndex].images.forEach((_, imageIndex) => {
+            const checkbox = document.getElementById(`checkbox-${monthIndex}-${imageIndex}`);
+            checkbox.checked = true;
+        });
+    };
+
+    // Function to add images from the file input
+    const addImages = () => {
+        const files = Array.from(fileInput.files);
+        files.forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const monthIndex = new Date(file.lastModified).getMonth();
+                // Add the image to the corresponding month array
+                months[monthIndex].images.push({
+                    src: e.target.result,
+                    name: file.name,
+                });
+                renderGallery();  // Re-render the gallery after adding the image
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    // Function to delete selected images from the gallery
+    const deleteSelectedImages = () => {
+        months.forEach((month, monthIndex) => {
+            // Filter out images that are not selected
+            month.images = month.images.filter((_, imageIndex) => {
+                const checkbox = document.getElementById(`checkbox-${monthIndex}-${imageIndex}`);
+                return !checkbox.checked;  // Remove selected images
+            });
+        });
+        renderGallery();  // Re-render the gallery after deleting selected images
+    };
+
+    // Function to download selected images as a ZIP file
+    const downloadAsZip = () => {
+        const zip = new JSZip();
+        let imageIndex = 0;
+        months.forEach(({ images }) => {
+            images.forEach(({ src, name }) => {
+                const checkbox = gallery.querySelectorAll(".checkbox")[imageIndex];
+                if (checkbox.checked) {
+                    const imgData = src.split(",")[1];  // Extract base64 image data
+                    zip.file(name, imgData, { base64: true });
+                }
+                imageIndex++;
+            });
+        });
+
+        // Generate and save the ZIP file
+        zip.generateAsync({ type: "blob" }).then((content) => {
+            saveAs(content, "images.zip");  // Trigger download of the ZIP file
+        });
+    };
+
+    // Function to email selected images as attachments
+    const emailAttachment = () => {
+        const selectedImages = [];
+        months.forEach(({ images }) => {
+            images.forEach(({ name }, index) => {
+                const checkbox = gallery.querySelectorAll(".checkbox")[index];
+                if (checkbox.checked) {
+                    selectedImages.push(name);  // Collect selected image names
+                }
+            });
+        });
+
+        if (selectedImages.length > 0) {
+            // Encode the selected image names and create the mailto link
+            const encodedImages = encodeURIComponent(selectedImages.join("\n"));
+            const mailtoLink = `mailto:?subject=Image Attachments&body=${encodedImages}`;
+            window.location.href = mailtoLink;  // Open the email client with the attachments
+        } else {
+            alert("Please select at least one image to attach.");
+        }
+    };
+
+    // Function to open the modal with the clicked image
+    const openModal = (src, name) => {
+        modal.style.display = "block";
+        modalImage.src = src;
+        caption.innerText = name;
+
+        // Hide all checkboxes when modal is opened
+        document.querySelectorAll(".checkbox").forEach(checkbox => {
+            checkbox.classList.add("hidden");
+        });
+    };
+
+    // Close the modal when the user clicks the close button
+    closeModal.addEventListener("click", () => {
+        modal.style.display = "none";
+
+        // Show all checkboxes again when modal is closed
+        document.querySelectorAll(".checkbox").forEach(checkbox => {
+            checkbox.classList.remove("hidden");
+        });
+    });
+
+    // Close the modal if the user clicks outside the image
+    window.addEventListener("click", (event) => {
+        if (event.target === modal) {
+            modal.style.display = "none";
+
+            // Show all checkboxes again when modal is closed
+            document.querySelectorAll(".checkbox").forEach(checkbox => {
+                checkbox.classList.remove("hidden");
+            });
+        }
+    });
+
+    // Event listeners for the buttons
+    addImagesButton.addEventListener("click", addImages);
+    deleteSelectedButton.addEventListener("click", deleteSelectedImages);
+    downloadZipButton.addEventListener("click", downloadAsZip);
+    emailAttachmentButton.addEventListener("click", emailAttachment);
+
+    // Initial rendering of the gallery
+    renderGallery();
+});
